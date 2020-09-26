@@ -1,0 +1,27 @@
+3. Training Networks Using Multiple GPUs
+
+It’s important to note that all neural networks in the ImageNet Bundle can be trained using a
+single GPU – the only caveat is time. Some networks, such as AlexNet and SqueezeNet, require
+only a few days time to be trained on a single GPU. Other architectures, such as VGGNet and
+ResNet, may take over a month to train on a single GPU.
+
+3.1 How Many GPUs Do I Need?
+
+Regardless if you have one GPU or eight GPUs, you’ll be able to replicate the performance of
+the networks detailed in this chapter, but again, keep in mind the caveat of time. The more GPUs
+you have, the faster the training will be. If you have a single GPU, don’t be frustrated – simply be
+patient and understand this is part of the process. The primary goal of the ImageNet Bundle is to
+provide you with actual case studies and detailed information on how to train state-of-the-art deep
+neural networks on the challenging ImageNet dataset (along with a few additional applications
+as well). No matter if you have one GPU or eight GPUs, you’ll be able to learn from these case
+studies and use this knowledge in your own applications.
+
+3.2 Performance Gains Using Multiple GPUs
+
+
+t training speed will not scale linearly with the number GPUs – if you train a network
+using one GPU, then train it again using four GPUs, don’t expect the amount of time it takes to
+train the network to decrease by a factor of four. That said, there are performance gains to be had
+by training deep learning models with more GPUs, so if you have them available, by all means, use
+them.
+
