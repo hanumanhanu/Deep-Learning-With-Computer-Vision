@@ -1,0 +1,578 @@
+5.1 Understanding the ImageNet File Structure
+
+$ tar -xvf ILSVRC2015_CLS-LOC.tar.gz
+
+Once the tarball has finished uncompressing, you’ll have a directory named ILSVRC2015:
+$ ls ILSVRC2015
+
+Let’s go ahead and change directory into ILSVRC2015 and list the contents, where you’ll find
+three sub-directories:
+$ cd ILSVRC2015
+$ ls
+
+Annotations Data ImageSets
+First, we have the Annotations directory. This directory is only used for the localization
+challenge (i.e., object detection), so we can ignore this directory.
+
+The Data directory is more important. Inside Data we’ll find a sub-directory named CLS-LOC:
+$ ls Data/
+CLS-LOC
+
+Here we can find the training, testing, and validation “splits”:
+$ ls Data/CLS-LOC/
+test train val
+
+I put the word “splits” in quotations as there is still work that needs to be done in order to
+get this data in a format such that we can train a Convolutional Neural Network on it and obtain
+state-of-the-art classification results.
+
+5.1.1 ImageNet “test” Directory
+
+The test directory contains (as the name applies) 100,000 images (100 data points for each of the
+1,000 classes) for our testing split:
+$ ls -l Data/CLS-LOC/test/ | head -n 10
+
+5.1.3 ImageNet “val” Directory
+Similar to the test directory, the val directory contains 50,000 images per class (50 images for
+each of the 1,000 classes):
+
+$ ls -l Data/CLS-LOC/val/*.JPEG | wc -l
+50000
+
+$ ls -l Data/CLS-LOC/val/ | head -n 10
+total 6648996
+
+5.1.4 ImageNet “ImageSets” Directory
+
+$ ls
+Annotations Data ImageSets
+$ cd ImageSets/
+$ ls
+CLS-LOC
+$ cd CLS-LOC
+$ ls
+test.txt train_cls.txt train_loc.txt val.txt
+
+$ wc -l train_cls.txt val.txt
+1281167 train_cls.txt
+50000 val.txt
+1331167 total
+
+$ head -n 10 train_cls.txt
+n01440764/n01440764_10026 1
+n01440764/n01440764_10027 2
+n01440764/n01440764_10029 3
+n01440764/n01440764_10040 4
+n01440764/n01440764_10042 5
+n01440764/n01440764_10043 6
+n01440764/n01440764_10048 7
+n01440764/n01440764_10066 8
+n01440764/n01440764_10074 9
+n01440764/n01440764_10095 10
+
+$ head -n 10 val.txt
+ILSVRC2012_val_00000001 1
+ILSVRC2012_val_00000002 2
+ILSVRC2012_val_00000003 3
+ILSVRC2012_val_00000004 4
+ILSVRC2012_val_00000005 5
+ILSVRC2012_val_00000006 6
+ILSVRC2012_val_00000007 7
+ILSVRC2012_val_00000008 8
+ILSVRC2012_val_00000009 9
+ILSVRC2012_val_00000010 10
+
+5.1.5 ImageNet “DevKit” Directory
+
+$ tar -xvf ILSVRC2015_devkit.tar.gz
+Inside the ILSVRC2015 directory you’ll find the directory we are looking for – devkit:
+$ cd ILSVRC2015
+$ ls
+devkit
+
+I
+would suggest you copy the devkit directory so that it lives with our Annotations, Data, and
+ImageSets directories as well:
+$ cp -R ~/home/ILSVRC2015/devkit /raid/datasets/imagenet/
+
+the contents of devkit:
+$ cd devkit/
+$ ls
+COPYING data evaluation readme.txt
+
+Most importantly, we have the data directory. Inside data you’ll find a number of metafiles,
+both in MATLAB and plain text (.txt) format:
+$ cd data/
+$ ls -l
+total 2956
+ILSVRC2015_clsloc_validation_blacklist.txt
+ILSVRC2015_clsloc_validation_ground_truth.mat
+ILSVRC2015_clsloc_validation_ground_truth.txt
+ILSVRC2015_det_validation_blacklist.txt
+ILSVRC2015_det_validation_ground_truth.mat
+ILSVRC2015_vid_validation_ground_truth.mat
+map_clsloc.txt
+map_det.txt
+map_vid.txt
+meta_clsloc.mat
+meta_det.mat
+meta_vid.mat
+From this directory, we are most concerned with the following three files:
+• map_clsloc.txt
+• ILSVRC2015_clsloc_validation_ground_truth.txt
+• ILSVRC2015_clsloc_validation_blacklist.txt
+The map_clsloc.txt file maps our WordNet IDs to human readable class labels and is,
+therefore, the easiest method to convert a WordNet ID to a label a human can interpret. Listing the
+first few lines of this file, we can see the mappings themselves:
+$ head -n 10 map_clsloc.txt
+n02119789 1 kit_fox
+n02100735 2 English_setter
+n02110185 3 Siberian_husky
+n02096294 4 Australian_terrier
+n02102040 5 English_springer
+n02066245 6 grey_whale
+n02509815 7 lesser_panda
+n02124075 8 Egyptian_cat
+n02417914 9 ibex
+n02123394 10 Persian_cat
+
+. The val.txt file lists the (partial) image filenames for the validation set. There are exactly 50,000 entries (on per line) in the val.txt file. There
+are also 50,000 entries (one per line) inside ILSVRC2015_clsloc_validation_ground_truth.txt.
+Let’s take a look at these entries:
+$ head -n 10 ILSVRC2015_clsloc_validation_ground_truth.txt
+490
+361
+171
+822
+297
+482
+13
+704
+599
+164
+As we can see, there is a single integer listed on each line. Taking the first line of val.txt and
+the first line of ILSVRC2015_clsloc_validation_ground_truth.txt we end up with:
+(ILSVRC2012_val_00000001, 490)
+
+$ grep ’ 490 ’ map_clsloc.txt
+n01751748 490 sea_snake
+Therefore, we need to use both val.txt and ILSVRC2015_clsloc_validation_ground_truth.txt
+to build our validation set.
+
+Let’s also examine the contents of ILSVRC2015_clsloc_validation_blacklist.txt:
+$ head -n 10 ILSVRC2015_clsloc_validation_blacklist.txt
+36
+50
+56
+103
+127
+195
+199
+226
+230
+235
+
+5.2 Building the ImageNet Dataset
+
+From there, we’ll define a Python class named ImageNetHelper which will enable us to
+quickly and easily build:
+1. Our .lst files for the training, testing, and validation split. Each line in a .lst file contains
+the unique image ID, class label, and the full path to the input image. We’ll then be able to
+use these .lst files in conjunction with the mxnet tool im2rec to convert our image files to
+an efficiently packed record file.
+2. Our mean Red, Green, and Blue channel averages for the training set which we’ll later use
+when performing mean normalization.
+
+5.2.1 Your First ImageNet Configuration File
+Whenever training a CNN on ImageNet, we’ll create a project with the following directory structure:
+--- mx_imagenet_alexnet
+| |--- config
+| | |--- __init__.py
+| | |--- imagnet_alexnet_config.py
+| |--- imagenet
+| |--- output/
+| |--- build_imagenet.py
+| |--- test_alexnet.py
+| |--- train_alexnet.py
+
+e (1) the full path to the lists directory and (2) the sym-link version:
+• /raid/datasets/imagenet/lists
+• imagenet/lists (which points to the full /raid path above)
+To create your own sym-links (in a Unix-based environment) you can use the ln command.
+The example command below will create a symbolic link named imagenet in my current working
+directory which links to the full ImageNet dataset in my /raid drive:
+$ ln -s /raid/datasets/imagenet imagenet
+
+Regardless of where you choose to store your base ImageNet dataset directory, take the time
+now to create two subdirectories – lists and rec:
+$ mkdir imagenet/lists
+$ mkdir imagenet/rec
+
+# import the necessary packages
+2 from os import path
+3
+4 # define the base path to where the ImageNet dataset
+5 # devkit are stored on disk)
+6 BASE_PATH = "/raid/datasets/imagenet/ILSVRC2015"
+8 # based on the base path, derive the images base path, image sets
+9 # path, and devkit path
+10 IMAGES_PATH = path.sep.join([BASE_PATH, "Data/CLS-LOC"])
+11 IMAGE_SETS_PATH = path.sep.join([BASE_PATH, "ImageSets/CLS-LOC/"])
+12 DEVKIT_PATH = path.sep.join([BASE_PATH, "devkit/data"])
+14 # define the path that maps the 1,000 possible WordNet IDs to the
+15 # class label integers
+16 WORD_IDS = path.sep.join([DEVKIT_PATH, "map_clsloc.txt"])
+18 # define the paths to the training file that maps the (partial)
+19 # image filename to integer class label
+20 TRAIN_LIST = path.sep.join([IMAGE_SETS_PATH, "train_cls.txt"])
+Next, we need to define some validation configurations:
+22 # define the paths to to the validation filenames along with the
+23 # file that contains the ground-truth validation labels
+24 VAL_LIST = path.sep.join([IMAGE_SETS_PATH, "val.txt"])
+25 VAL_LABELS = path.sep.join([DEVKIT_PATH,
+26 "ILSVRC2015_clsloc_validation_ground_truth.txt"])
+27
+28 # define the path to the validation files that are blacklisted
+29 VAL_BLACKLIST = path.sep.join([DEVKIT_PATH,
+30 "ILSVRC2015_clsloc_validation_blacklist.txt"])
+32 # since we do not have access to the testing data we need to
+33 # take a number of images from the training data and use it instead
+34 NUM_CLASSES = 1000
+35 NUM_TEST_IMAGES = 50 * NUM_CLASSES
+37 # define the path to the output training, validation, and testing
+38 # lists
+39 MX_OUTPUT = "/raid/datasets/imagenet"
+40 TRAIN_MX_LIST = path.sep.join([MX_OUTPUT, "lists/train.lst"])
+41 VAL_MX_LIST = path.sep.join([MX_OUTPUT, "lists/val.lst"])
+42 TEST_MX_LIST = path.sep.join([MX_OUTPUT, "lists/test.lst"])
+44 # define the path to the output training, validation, and testing
+45 # image records
+46 TRAIN_MX_REC = path.sep.join([MX_OUTPUT, "rec/train.rec"])
+47 VAL_MX_REC = path.sep.join([MX_OUTPUT, "rec/val.rec"])
+48 TEST_MX_REC = path.sep.join([MX_OUTPUT, "rec/test.rec"])
+50 # define the path to the dataset mean
+51 DATASET_MEAN = "output/imagenet_mean.json"
+53 # define the batch size and number of devices used for training
+54 BATCH_SIZE = 128
+55 NUM_DEVICES = 8
+
+5.2.2 Our ImageNet Helper Utility
+1 # import the necessary packages
+2 import numpy as np
+3 import os
+4
+5 class ImageNetHelper:
+6 def __init__(self, config):
+7 # store the configuration object
+8 self.config = config
+9
+10 # build the label mappings and validation blacklist
+11 self.labelMappings = self.buildClassLabels()
+12 self.valBlacklist = self.buildBlackist()
+14 def buildClassLabels(self):
+15 # load the contents of the file that maps the WordNet IDs
+16 # to integers, then initialize the label mappings dictionary
+17 rows = open(self.config.WORD_IDS).read().strip().split("\n")
+18 labelMappings = {}
+20 # loop over the labels
+21 for row in rows:
+22 # split the row into the WordNet ID, label integer, and
+23 # human readable label
+24 (wordID, label, hrLabel) = row.split(" ")
+25
+26 # update the label mappings dictionary using the word ID
+27 # as the key and the label as the value, subtracting ‘1‘
+28 # from the label since MATLAB is one-indexed while Python
+29 # is zero-indexed
+30 labelMappings[wordID] = int(label) - 1
+31
+32 # return the label mappings dictionary
+33 return labelMappings
+35 def buildBlackist(self):
+36 # load the list of blacklisted image IDs and convert them to
+37 # a set
+38 rows = open(self.config.VAL_BLACKLIST).read()
+39 rows = set(rows.strip().split("\n"))
+40
+41 # return the blacklisted image IDs
+42 return rows
+44 def buildTrainingSet(self):
+45 # load the contents of the training input file that lists
+46 # the partial image ID and image number, then initialize
+47 # the list of image paths and class labels
+48 rows = open(self.config.TRAIN_LIST).read().strip()
+49 rows = rows.split("\n")
+50 paths = []
+51 labels = []
+
+On Line 48 we load the entire contents of the TRAIN_LIST file and break it into rows on
+Line 49. Recall that the TRAIN_LIST file contains the partial image file paths – a sample of the
+train_cls.txt file can be seen below:
+n01440764/n01440764_10969 91
+n01440764/n01440764_10979 92
+n01440764/n01440764_10995 93
+n01440764/n01440764_11011 94
+n01440764/n01440764_11018 95
+n01440764/n01440764_11044 96
+n01440764/n01440764_11063 97
+n01440764/n01440764_11085 98
+n01440764/n01440764_1108 99
+n01440764/n01440764_1113 100
+
+53 # loop over the rows in the input training file
+54 for row in rows:
+55 # break the row into the partial path and image
+56 # number (the image number is sequential and is
+57 # essentially useless to us)
+58 (partialPath, imageNum) = row.strip().split(" ")
+59
+60 # construct the full path to the training image, then
+61 # grab the word ID from the path and use it to determine
+62 # the integer class label
+63 path = os.path.sep.join([self.config.IMAGES_PATH,
+64 "train", "{}.JPEG".format(partialPath)])
+65 wordID = partialPath.split("/")[0]
+66 label = self.labelMappings[wordID]
+
+
+This path consists of three components:
+1. The IMAGES_PATH where all our train, test, and val directories live.
+2. The hardcoded train string which indicates that we are constructing a file path for a training
+image.
+3. The partialPath which is the sub-directory and base filename of the image itself.
+We append the file extension to .JPEG to create the final image path. An example path can be
+seen below:
+/raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n02097130/n02097130_4602.JPEG
+
+68 # update the respective paths and label lists
+69 paths.append(path)
+70 labels.append(label)
+71
+72 # return a tuple of image paths and associated integer class
+73 # labels
+74 return (np.array(paths), np.array(labels))
+76 def buildValidationSet(self):
+77 # initialize the list of image paths and class labels
+78 paths = []
+79 labels = []
+80
+81 # load the contents of the file that lists the partial
+82 # validation image filenames
+83 valFilenames = open(self.config.VAL_LIST).read()
+84 valFilenames = valFilenames.strip().split("\n")
+85
+86 # load the contents of the file that contains the *actual*
+87 # ground-truth integer class labels for the validation set
+88 valLabels = open(self.config.VAL_LABELS).read()
+89 valLabels = valLabels.strip().split("\n")
+91 # loop over the validation data
+92 for (row, label) in zip(valFilenames, valLabels):
+93 # break the row into the partial path and image number
+94 (partialPath, imageNum) = row.strip().split(" ")
+95
+96 # if the image number is in the blacklist set then we
+97 # should ignore this validation image
+98 if imageNum in self.valBlacklist:
+99 continue
+100
+101 # construct the full path to the validation image, then
+102 # update the respective paths and labels lists
+103 path = os.path.sep.join([self.config.IMAGES_PATH, "val",
+104 "{}.JPEG".format(partialPath)])
+105 paths.append(path)
+106 labels.append(int(label) - 1)
+107
+108 # return a tuple of image paths and associated integer class
+109 # labels
+110 return (np.array(paths), np.array(labels))
+
+5.2.3 Creating List and Mean Files
+r. At a high level, we will:
+1. Build the training set.
+2. Build the validation set.
+3. Construct the testing set by sampling the training set.
+4. Loop over each of the sets.
+5. Write the image path + corresponding class label to disk.
+Let’s go ahead and start working on build_imagenet.py now:
+1 # import the necessary packages
+2 from config import imagenet_alexnet_config as config
+3 from sklearn.model_selection import train_test_split
+4 from pyimagesearch.utils import ImageNetHelper
+5 import numpy as np
+6 import progressbar
+7 import json
+8 import cv2
+10 # initialize the ImageNet helper and use it to construct the set of
+11 # training and testing data
+12 print("[INFO] loading image paths...")
+13 inh = ImageNetHelper(config)
+14 (trainPaths, trainLabels) = inh.buildTrainingSet()
+15 (valPaths, valLabels) = inh.buildValidationSet()
+17 # perform stratified sampling from the training set to construct a
+18 # a testing set
+19 print("[INFO] constructing splits...")
+20 split = train_test_split(trainPaths, trainLabels,
+21 test_size=config.NUM_TEST_IMAGES, stratify=trainLabels,
+22 random_state=42)
+23 (trainPaths, testPaths, trainLabels, testLabels) = split
+25 # construct a list pairing the training, validation, and testing
+26 # image paths along with their corresponding labels and output list
+27 # files
+28 datasets = [
+29 ("train", trainPaths, trainLabels, config.TRAIN_MX_LIST),
+30 ("val", valPaths, valLabels, config.VAL_MX_LIST),
+31 ("test", testPaths, testLabels, config.TEST_MX_LIST)]
+32
+33 # initialize the list of Red, Green, and Blue channel averages
+34 (R, G, B) = ([], [], [])
+define a datasets list. Each entry in the datasets list is a 4-tuple, consisting of
+four values:
+1. The type of split (i.e., training, testing, or validation).
+2. The image paths.
+3. The image labels.
+4. The path to the output .lst file required by mxnet.
+We’ll also initialize the RGB channel averages on Line 34. Next, let’s loop over each entry in
+the datasets list:
+36 # loop over the dataset tuples
+37 for (dType, paths, labels, outputPath) in datasets:
+38 # open the output file for writing
+39 print("[INFO] building {}...".format(outputPath))
+40 f = open(outputPath, "w")
+41
+42 # initialize the progress bar
+43 widgets = ["Building List: ", progressbar.Percentage(), " ",
+44 progressbar.Bar(), " ", progressbar.ETA()]
+45 pbar = progressbar.ProgressBar(maxval=len(paths),
+46 widgets=widgets).start()
+48 # loop over each of the individual images + labels
+49 for (i, (path, label)) in enumerate(zip(paths, labels)):
+50 # write the image index, label, and output path to file
+51 row = "\t".join([str(i), str(label), path])
+52 f.write("{}\n".format(row))
+53
+54 # if we are building the training dataset, then compute the
+55 # mean of each channel in the image, then update the
+56 # respective lists
+57 if dType == "train":
+58 image = cv2.imread(path)
+59 (b, g, r) = cv2.mean(image)[:3]
+60 R.append(r)
+61 G.append(g)
+62 B.append(b)
+63
+64 # update the progress bar
+65 pbar.update(i)
+For each path and label, we write three values to the output .lst file:
+1. The index, i (this is simply a unique integer that mxnet can associate with the image in the
+set).
+2. The integer class label.
+3. The full path to the image file.
+Each of these values are separated by a tab, with one set of values per line. A sample of such an
+output file can be seen below:
+0 35 /raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n02097130/n02097130_4602.JPEG
+1 640 /raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n02276258/n02276258_7039.JPEG
+2 375 /raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n03109150/n03109150_2152.JPEG
+3 121 /raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n02483708/n02483708_3226.JPEG
+4 977 /raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n04392985/n04392985_22306.JPEG
+
+67 # close the output file
+68 pbar.finish()
+69 f.close()
+70
+71 # construct a dictionary of averages, then serialize the means to a
+72 # JSON file
+73 print("[INFO] serializing means...")
+74 D = {"R": np.mean(R), "G": np.mean(G), "B": np.mean(B)}
+75 f = open(config.DATASET_MEAN, "w")
+76 f.write(json.dumps(D))
+77 f.close()
+To execute the build_dataset.py script, just execute the following command:
+$ time python build_imagenet.py
+[INFO] loading image paths...
+[INFO] constructing splits...
+[INFO] building /raid/datasets/imagenet/lists/train.lst...
+Building List: 100% |####################################| Time: 1:47:35
+[INFO] building /raid/datasets/imagenet/lists/val.lst...
+Building List: 100% |####################################| Time: 0:00:00
+[INFO] building /raid/datasets/imagenet/lists/test.lst...
+Building List: 100% |####################################| Time: 0:00:00
+[INFO] serializing means...
+real 107m39.276s
+user 75m26.044s
+sys 2m35.237s
+
+To validate that your .lst files for the training, testing, and validation files were successfully
+created, check the contents of your MX_OUTPUT directory. Below you can find the contents of my
+MX_OUTPUT/lists directory (where I choose to store the .lst files):
+$ ls /raid/datasets/imagenet/lists/
+test.lst train.lst val.lst
+
+Doing a line count on each of the files reveals there are 50,000 images in our testing set, 50,000
+images in our validation set, and 1,231,167 images in our testing set:
+$ wc -l /raid/datasets/imagenet/lists/*.lst
+50000 /raid/datasets/imagenet/lists/test.lst
+1231167 /raid/datasets/imagenet/lists/train.lst
+48238 /raid/datasets/imagenet/lists/val.lst
+1329405 total
+
+5.2.4 Building the Compact Record Files
+e command to generate the train.rec
+file using mxnet’s im2rec binary:
+$ ~/mxnet/bin/im2rec /raid/datasets/imagenet/lists/train.lst "" \
+/raid/datasets/imagenet/rec/train.rec \ resize=256 encoding=’.jpg’ \
+quality=100
+
+As the output below demonstrates, converting the .lst files into packed record files is time
+consuming as each of the ≈ 1.2million images needs to be loaded from disk, resized, and stored in
+the dataset:
+[17:25:21] tools/im2rec.cc:126: New Image Size: Short Edge 256
+[17:25:21] tools/im2rec.cc:139: Encoding is .jpg
+[17:25:21] tools/im2rec.cc:185: Write to output: /raid/datasets/imagenet/rec/train.rec
+[17:25:21] tools/im2rec.cc:187: Output: /raid/datasets/imagenet/rec/train.rec
+[17:25:21] tools/im2rec.cc:200: JPEG encoding quality: 100
+[17:25:26] tools/im2rec.cc:295: 1000 images processed, 5.81205 sec elapsed
+[17:25:33] tools/im2rec.cc:295: 2000 images processed, 12.213 sec elapsed
+[17:25:39] tools/im2rec.cc:295: 3000 images processed, 18.6334 sec elapsed
+...
+[19:22:42] tools/im2rec.cc:295: 1230000 images processed, 7041.57 sec elapsed
+[19:22:49] tools/im2rec.cc:295: 1231000 images processed, 7048.79 sec elapsed
+[19:22:51] tools/im2rec.cc:298: Total: 1231167 images processed, 7050.07 sec elapsed
+
+I can then repeat the process for the validation set:
+$ ~/mxnet/bin/im2rec /raid/datasets/imagenet/lists/val.lst "" \
+/raid/datasets/imagenet/rec/val.rec resize=256 encoding=’.jpg’ \
+quality=100
+[06:40:10] tools/im2rec.cc:126: New Image Size: Short Edge 256
+[06:40:10] tools/im2rec.cc:139: Encoding is .jpg
+[06:40:10] tools/im2rec.cc:185: Write to output: /raid/datasets/imagenet/rec/val.rec
+[06:40:10] tools/im2rec.cc:187: Output: /raid/datasets/imagenet/rec/val.rec
+[06:40:10] tools/im2rec.cc:200: JPEG encoding quality: 100
+[06:40:15] tools/im2rec.cc:295: 1000 images processed, 5.9966 sec elapsed
+[06:40:22] tools/im2rec.cc:295: 2000 images processed, 12.0281 sec elapsed
+[06:40:27] tools/im2rec.cc:295: 3000 images processed, 17.2865 sec elapsed
+...
+[06:44:36] tools/im2rec.cc:295: 47000 images processed, 266.616 sec elapsed
+[06:44:42] tools/im2rec.cc:295: 48000 images processed, 272.019 sec elapsed
+[06:44:43] tools/im2rec.cc:298: Total: 48238 images processed, 273.292 sec elapsed
+As well as the testing set:
+$ ~/mxnet/bin/im2rec /raid/datasets/imagenet/lists/test.lst "" \
+/raid/datasets/imagenet/rec/test.rec resize=256 encoding=’.jpg’ \
+quality=100
+[06:47:16] tools/im2rec.cc:139: Encoding is .jpg
+[06:47:16] tools/im2rec.cc:185: Write to output: /raid/datasets/imagenet/rec/test.rec
+[06:47:16] tools/im2rec.cc:187: Output: /raid/datasets/imagenet/rec/test.rec
+[06:47:16] tools/im2rec.cc:200: JPEG encoding quality: 100
+[06:47:22] tools/im2rec.cc:295: 1000 images processed, 6.32423 sec elapsed
+[06:47:28] tools/im2rec.cc:295: 2000 images processed, 12.3095 sec elapsed
+[06:47:35] tools/im2rec.cc:295: 3000 images processed, 19.0255 sec elapsed
+...
+[06:52:47] tools/im2rec.cc:295: 49000 images processed, 331.259 sec elapsed
+[06:52:55] tools/im2rec.cc:295: 50000 images processed, 339.409 sec elapsed
+[06:52:55] tools/im2rec.cc:298: Total: 50000 images processed, 339.409 sec elapsed
+After we have generated the datasets using im2rec for the training, testing, and validation
+splits, let’s take a look at the file sizes:
+$ ls -l /raid/datasets/imagenet/rec/
+total 105743748
+-rw-rw-r-- 1 adrian adrian 4078794388 Dec 12 2016 test.rec
+-rw-rw-r-- 1 adrian adrian 100250277132 Dec 12 2016 train.rec
+-rw-rw-r-- 1 adrian adrian 3952497240 Dec 12 2016 val.rec
