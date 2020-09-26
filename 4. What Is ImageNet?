@@ -1,0 +1,82 @@
+4.1 The ImageNet Dataset
+
+ ImageNet is actually a project aimed at labeling
+and categorizing images into all its 22,000 categories based on a defined set of words and phrases.
+At the time of this writing, there are over 14 million images in the ImageNet project.
+
+4.1.1 ILSVRC
+
+ImageNet Large Scale Visual Recognition Challenge [9], or
+simply ILSVRC for short. The goal of the image classification track in this challenge is to train a
+model that can correctly classify an image into 1,000 separate object categories, some of which are
+considered fine-grained classification and others which are not. 
+Images inside the ImageNet datasetwere gathered by compiling previous datasets and scraping popular online websites. These images
+were then manually labeled, annotated, and tagged.
+
+4.2 Obtaining ImageNet
+
+The ImageNet classification challenge dataset is quite large, weighing in at 138GB for the training
+images, 6.3GB for the validation images, and 13GB for the testing images. Before you can
+download ImageNet, you first need to obtain access to the ILSVRC challenge and download the
+images and associated class labels. This section will help you obtain the ImageNet dataset.
+
+4.2.1 Requesting Access to the ILSVRC Challenge
+
+Once you’ve accepted the Terms of Access you’ll have access to the Download Original
+Images page – click the ILSVRC 2015 image data link. From there make sure you download
+the Development Kit, a .zip file containing a README, information on the training/testing splits,
+blacklisted files that should not be used for training, etc. (Figure 4.3).
+You’ll then want to download the CLS-LOC dataset which contains the 1.2 million images in
+the ImageNet dataset (Figure 4.3). Keep in mind that this is a large file and depending on your
+internet connection (and the stability of image-net.org), this download may take a couple of days.
+My personal suggestion would be to use the wget command line program to download the archive,
+enabling you to restart the download from where you left off, just in case there are connectivity
+issues (which there are likely to be a handful of). Explaining how to use wget is outside the scope
+of this book, so please refer to the following page for instructions on how to restart a download
+with wget (http://pyimg.co/97u59).
+
+4.2.2 Downloading Images Programmatically
+
+: To download the entire ImageNet dataset you’ll need to download the development kit
+along with the large .tar archive of the ≈ 1.2million images. (highlighted with red rectangles).
+does not “own” the images inside the dataset so they can freely distribute the URLs of the images.
+The URLs of every image (a .txt file with one URL per line) in the dataset can be found here:
+http://pyimg.co/kw64x
+Again, you would need to use wget to download the images. A common problem you may
+encounter here is that some image URLs may have naturally 404’d since the original web crawl and
+you won’t have access to them. Therefore, downloading the images programmatically can be quite
+cumbersome, tedious, and a method I do not recommend. But don’t fret – there is another way to
+obtain ImageNet.
+
+4.2.3 Using External Services
+The testing set is not included in the torrent as we will not have access to the ImageNet
+evaluation server to submit our predictions on the testing data. Please keep in mind that even if you
+do use external services such as AcademicTorrents to download the ImageNet dataset, you are still
+implicitly bound to the Terms of Access. 
+
+4.2.4 ImageNet Development Kit
+
+The DevKit contains:
+• An overview and statistics for the dataset.
+• Meta data for the categories (allowing us to build our image filename to class label mappings).
+• MATLAB routines for evaluation (which we will not need).
+
+4.2.5 ImageNet Copyright Concerns
+
+• Asset #1: The images themselves.
+• Asset #2: The pre-compiled ILSVRC dataset.
+• Asset #3: The output model weights obtained by training a network on ILSVRC.
+
+My Anecdotal Opinion
+It is my anecdotal opinion that there is an unspoken set of rules that govern the fair usage of
+the ImageNet dataset. I believe these rules to be as follows (although there are sure to be many
+who disagree with me):
+• Rule #1: You need to obtain the ILSVRC dataset by some means and accept (either explicitly
+or implicitly) the Terms of Access.
+• Rule #2: After obtaining the data associated with the ILSVRC challenge, you need to train
+your own Convolutional Neural Network on the dataset. You are free to use existing network
+architectures such as AlexNet, VGGNet, ResNet, etc. provided that you train the network
+from scratch on the ILSVRC dataset. You do not need to develop a novel network architecture.
+• Rule #3: Once you have obtained your model weights, you can then distribute them under
+your own restrictions, including open access, usage with attribution, and even limited commercial usage.
+
