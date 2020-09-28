@@ -1,0 +1,218 @@
+8.1.3 Implementing GoogLeNet
+
+--- pyimagesearch
+| |--- __init__.py
+| |--- callbacks
+| |--- nn
+| | |--- __init__.py
+| | |--- conv
+| | |--- mxconv
+| | | |--- __init__.py
+| | | |--- mxalexnet.py
+| | | |--- mxgooglenet.py
+| | | |--- mxvggnet.py
+| |--- preprocessing
+| |--- utils
+
+1 # import the necessary packages
+2 import mxnet as mx
+3
+4 class MxGoogLeNet:
+5 @staticmethod
+6 def conv_module(data, K, kX, kY, pad=(0, 0), stride=(1, 1)):
+7 # define the CONV => BN => RELU pattern
+8 conv = mx.sym.Convolution(data=data, kernel=(kX, kY),
+9 num_filter=K, pad=pad, stride=stride)
+10 bn = mx.sym.BatchNorm(data=conv)
+11 act = mx.sym.Activation(data=bn, act_type="relu")
+12
+13 # return the block
+14 return act
+16 @staticmethod
+17 def inception_module(data, num1x1, num3x3Reduce, num3x3,
+18 num5x5Reduce, num5x5, num1x1Proj):
+19 # the first branch of the Inception module consists of 1x1
+20 # convolutions
+21 conv_1x1 = MxGoogLeNet.conv_module(data, num1x1, 1, 1)
+23 # the second branch of the Inception module is a set of 1x1
+24 # convolutions followed by 3x3 convolutions
+25 conv_r3x3 = MxGoogLeNet.conv_module(data, num3x3Reduce, 1, 1)
+26 conv_3x3 = MxGoogLeNet.conv_module(conv_r3x3, num3x3, 3, 3,
+27 pad=(1, 1))
+29 # the third branch of the Inception module is a set of 1x1
+30 # convolutions followed by 5x5 convolutions
+31 conv_r5x5 = MxGoogLeNet.conv_module(data, num5x5Reduce, 1, 1)
+32 conv_5x5 = MxGoogLeNet.conv_module(conv_r5x5, num5x5, 5, 5,
+33 pad=(2, 2))
+35 # the final branch of the Inception module is the POOL +
+36 # projection layer set
+37 pool = mx.sym.Pooling(data=data, pool_type="max", pad=(1, 1),
+38 kernel=(3, 3), stride=(1, 1))
+39 conv_proj = MxGoogLeNet.conv_module(pool, num1x1Proj, 1, 1)
+41 # concatenate the filters across the channel dimension
+42 concat = mx.sym.Concat(*[conv_1x1, conv_3x3, conv_5x5,
+43 conv_proj])
+44
+45 # return the block
+46 return concat
+48 @staticmethod
+49 def build(classes):
+50 # data input
+51 data = mx.sym.Variable("data")
+52
+53 # Block #1: CONV => POOL => CONV => CONV => POOL
+54 conv1_1 = MxGoogLeNet.conv_module(data, 64, 7, 7,
+55 pad=(3, 3), stride=(2, 2))
+56 pool1 = mx.sym.Pooling(data=conv1_1, pool_type="max",
+57 pad=(1, 1), kernel=(3, 3), stride=(2, 2))
+58 conv1_2 = MxGoogLeNet.conv_module(pool1, 64, 1, 1)
+59 conv1_3 = MxGoogLeNet.conv_module(conv1_2, 192, 3, 3,
+60 pad=(1, 1))
+61 pool2 = mx.sym.Pooling(data=conv1_3, pool_type="max",
+62 pad=(1, 1), kernel=(3, 3), stride=(2, 2))
+64 # Block #3: (INCEP * 2) => POOL
+65 in3a = MxGoogLeNet.inception_module(pool2, 64, 96, 128, 16,
+66 32, 32)
+67 in3b = MxGoogLeNet.inception_module(in3a, 128, 128, 192, 32,
+68 96, 64)
+69 pool3 = mx.sym.Pooling(data=in3b, pool_type="max",
+70 pad=(1, 1), kernel=(3, 3), stride=(2, 2))
+72 # Block #4: (INCEP * 5) => POOL
+73 in4a = MxGoogLeNet.inception_module(pool3, 192, 96, 208, 16,
+74 48, 64)
+75 in4b = MxGoogLeNet.inception_module(in4a, 160, 112, 224, 24,
+76 64, 64)
+77 in4c = MxGoogLeNet.inception_module(in4b, 128, 128, 256, 24,
+78 64, 64)
+79 in4d = MxGoogLeNet.inception_module(in4c, 112, 144, 288, 32,
+80 64, 64)
+81 in4e = MxGoogLeNet.inception_module(in4d, 256, 160, 320, 32,
+82 128, 128)
+83 pool4 = mx.sym.Pooling(data=in4e, pool_type="max",
+84 pad=(1, 1), kernel=(3, 3), stride=(2, 2))
+86 # Block #5: (INCEP * 2) => POOL => DROPOUT
+87 in5a = MxGoogLeNet.inception_module(pool4, 256, 160, 320, 32,
+88 128, 128)
+89 in5b = MxGoogLeNet.inception_module(in5a, 384, 192, 384, 48,
+90 128, 128)
+91 pool5 = mx.sym.Pooling(data=in5b, pool_type="avg",
+92 kernel=(7, 7), stride=(1, 1))
+93 do = mx.sym.Dropout(data=pool5, p=0.4)
+95 # softmax classifier
+96 flatten = mx.sym.Flatten(data=do)
+97 fc1 = mx.sym.FullyConnected(data=flatten, num_hidden=classes)
+98 model = mx.sym.SoftmaxOutput(data=fc1, name="softmax")
+99
+100 # return the network architecture
+101 return model
+
+8.1.4 Training GoogLeNet
+
+--- mx_imagenet_googlenet
+| |--- config
+| | |--- __init__.py
+| | |--- imagnet_googlenet_config.py
+| |--- output/
+| |--- test_googlenet.py
+| |--- train_googlenet.py
+
+1 # import the necessary packages
+2 from config import imagenet_googlenet_config as config
+3 from pyimagesearch.nn.mxconv import MxGoogLeNet
+4 import mxnet as mx
+5 import argparse
+6 import logging
+7 import json
+8 import os
+10 # construct the argument parse and parse the arguments
+11 ap = argparse.ArgumentParser()
+12 ap.add_argument("-c", "--checkpoints", required=True,
+13 help="path to output checkpoint directory")
+14 ap.add_argument("-p", "--prefix", required=True,
+15 help="name of model prefix")
+16 ap.add_argument("-s", "--start-epoch", type=int, default=0,
+17 help="epoch to restart training at")
+18 args = vars(ap.parse_args())
+19
+20 # set the logging level and output file
+21 logging.basicConfig(level=logging.DEBUG,
+22 filename="training_{}.log".format(args["start_epoch"]),
+23 filemode="w")
+24
+25 # load the RGB means for the training set, then determine the batch
+26 # size
+27 means = json.loads(open(config.DATASET_MEAN).read())
+28 batchSize = config.BATCH_SIZE * config.NUM_DEVICES
+30 # construct the training image iterator
+31 trainIter = mx.io.ImageRecordIter(
+32 path_imgrec=config.TRAIN_MX_REC,
+33 data_shape=(3, 224, 224),
+34 batch_size=batchSize,
+35 rand_crop=True,
+36 rand_mirror=True,
+37 rotate=15,
+38 max_shear_ratio=0.1,
+39 mean_r=means["R"],
+40 mean_g=means["G"],
+41 mean_b=means["B"],
+42 preprocess_threads=config.NUM_DEVICES * 2)
+44 # construct the validation image iterator
+45 valIter = mx.io.ImageRecordIter(
+46 path_imgrec=config.VAL_MX_REC,
+47 data_shape=(3, 224, 224),
+48 batch_size=batchSize,
+49 mean_r=means["R"],
+50 mean_g=means["G"],
+51 mean_b=means["B"])
+53 # initialize the optimizer
+54 opt = mx.optimizer.Adam(learning_rate=1e-3, wd=0.0002,
+55 rescale_grad=1.0 / batchSize)
+57 # construct the checkpoints path, initialize the model argument and
+58 # auxiliary parameters
+59 checkpointsPath = os.path.sep.join([args["checkpoints"],
+60 args["prefix"]])
+61 argParams = None
+62 auxParams = None
+64 # if there is no specific model starting epoch supplied, then
+65 # initialize the network
+66 if args["start_epoch"] <= 0:
+67 # build the LeNet architecture
+68 print("[INFO] building network...")
+69 model = MxGoogLeNet.build(config.NUM_CLASSES)
+70
+71 # otherwise, a specific checkpoint was supplied
+72 else:
+73 # load the checkpoint from disk
+74 print("[INFO] loading epoch {}...".format(args["start_epoch"]))
+75 model = mx.model.FeedForward.load(checkpointsPath,
+76 args["start_epoch"])
+77
+78 # update the model and parameters
+79 argParams = model.arg_params
+80 auxParams = model.aux_params
+81 model = model.symbol
+83 # compile the model
+84 model = mx.model.FeedForward(
+85 ctx=[mx.gpu(0), mx.gpu(1), mx.gpu(2)],
+86 symbol=model,
+87 initializer=mx.initializer.Xavier(),
+88 arg_params=argParams,
+89 aux_params=auxParams,
+90 optimizer=opt,
+91 num_epoch=90,
+92 begin_epoch=args["start_epoch"])
+94 # initialize the callbacks and evaluation metrics
+95 batchEndCBs = [mx.callback.Speedometer(batchSize, 250)]
+96 epochEndCBs = [mx.callback.do_checkpoint(checkpointsPath)]
+97 metrics = [mx.metric.Accuracy(), mx.metric.TopKAccuracy(top_k=5),
+98 mx.metric.CrossEntropy()]
+100 # train the network
+101 print("[INFO] training network...")
+102 model.fit(
+103 X=trainIter,
+104 eval_data=valIter,
+105 eval_metric=metrics,
+106 batch_end_callback=batchEndCBs,
+107 epoch_end_callback=epochEndCBs)
+
+
