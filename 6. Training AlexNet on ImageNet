@@ -69,100 +69,74 @@ and instead logs training progress to the terminal.
 
 6.2.2 Implementing the Training Script
 
-1 # import the necessary packages
-2 from config import imagenet_alexnet_config as config
-3 from pyimagesearch.nn.mxconv import MxAlexNet
-4 import mxnet as mx
-5 import argparse
-6 import logging
-7 import json
-8 import os
-10 # construct the argument parse and parse the arguments
-11 ap = argparse.ArgumentParser()
-12 ap.add_argument("-c", "--checkpoints", required=True,
-13 help="path to output checkpoint directory")
-14 ap.add_argument("-p", "--prefix", required=True,
-15 help="name of model prefix")
-16 ap.add_argument("-s", "--start-epoch", type=int, default=0,
-17 help="epoch to restart training at")
-18 args = vars(ap.parse_args())
-20 # set the logging level and output file
-21 logging.basicConfig(level=logging.DEBUG,
-22 filename="training_{}.log".format(args["start_epoch"]),
-23 filemode="w")
-25 # load the RGB means for the training set, then determine the batch
-26 # size
-27 means = json.loads(open(config.DATASET_MEAN).read())
-28 batchSize = config.BATCH_SIZE * config.NUM_DEVICES
-30 # construct the training image iterator
-31 trainIter = mx.io.ImageRecordIter(
-32 path_imgrec=config.TRAIN_MX_REC,
-33 data_shape=(3, 227, 227),
-34 batch_size=batchSize,
-35 rand_crop=True,
-36 rand_mirror=True,
-37 rotate=15,
-38 max_shear_ratio=0.1,
-39 mean_r=means["R"],
-40 mean_g=means["G"],
-41 mean_b=means["B"],
-42 preprocess_threads=config.NUM_DEVICES * 2)
-44 # construct the validation image iterator
-45 valIter = mx.io.ImageRecordIter(
-46 path_imgrec=config.VAL_MX_REC,
-47 data_shape=(3, 227, 227),
-48 batch_size=batchSize,
-49 mean_r=means["R"],
-50 mean_g=means["G"],
-51 mean_b=means["B"])
-53 # initialize the optimizer
-54 opt = mx.optimizer.SGD(learning_rate=1e-2, momentum=0.9, wd=0.0005,
-55 rescale_grad=1.0 / batchSize)
-57 # construct the checkpoints path, initialize the model argument and
-58 # auxiliary parameters
-59 checkpointsPath = os.path.sep.join([args["checkpoints"],
-60 args["prefix"]])
-61 argParams = None
-64 # if there is no specific model starting epoch supplied, then
-65 # initialize the network
-66 if args["start_epoch"] <= 0:
-67 # build the LeNet architecture
-68 print("[INFO] building network...")
-69 model = MxAlexNet.build(config.NUM_CLASSES)
-71 # otherwise, a specific checkpoint was supplied
-72 else:
-73 # load the checkpoint from disk
-74 print("[INFO] loading epoch {}...".format(args["start_epoch"]))
-75 model = mx.model.FeedForward.load(checkpointsPath,
-76 args["start_epoch"])
-77
-78 # update the model and parameters
-79 argParams = model.arg_params
-80 auxParams = model.aux_params
-81 model = model.symbol
-83 # compile the model
-84 model = mx.model.FeedForward(
-85 ctx=[mx.gpu(1), mx.gpu(2), mx.gpu(3)],
-86 symbol=model,
-87 initializer=mx.initializer.Xavier(),
-88 arg_params=argParams,
-89 aux_params=auxParams,
-90 optimizer=opt,
-91 num_epoch=90,
-92 begin_epoch=args["start_epoch"])
-94 # initialize the callbacks and evaluation metrics
-95 batchEndCBs = [mx.callback.Speedometer(batchSize, 500)]
-96 epochEndCBs = [mx.callback.do_checkpoint(checkpointsPath)]
-97 metrics = [mx.metric.Accuracy(), mx.metric.TopKAccuracy(top_k=5),
-98 mx.metric.CrossEntropy()]
-100 # train the network
-101 print("[INFO] training network...")
-102 model.fit(
-103 X=trainIter,
-104 eval_data=valIter,
-105 eval_metric=metrics,
-106 batch_end_callback=batchEndCBs,
-107 epoch_end_callback=epochEndCBs)
+from config import imagenet_alexnet_config as config
+from pyimagesearch.nn.mxconv import MxAlexNet
+import mxnet as mx
+import argparse
+import logging
+import json
+import os
+ # construct the argument parse and parse the arguments
+ap = argparse.ArgumentParser()
+ap.add_argument("-c", "--checkpoints", required=True,
+help="path to output checkpoint directory")
+ap.add_argument("-p", "--prefix", required=True,help="name of model prefix")
+ap.add_argument("-s", "--start-epoch", type=int, default=0,help="epoch to restart training at")
+args = vars(ap.parse_args())
+# set the logging level and output file
+ logging.basicConfig(level=logging.DEBUG,
+filename="training_{}.log".format(args["start_epoch"]), filemode="w")
+# load the RGB means for the training set, then determine the batch
+# size
+means = json.loads(open(config.DATASET_MEAN).read())
+batchSize = config.BATCH_SIZE * config.NUM_DEVICES
+# construct the training image iterator
+trainIter = mx.io.ImageRecordIter(path_imgrec=config.TRAIN_MX_REC,data_shape=(3, 227, 227),batch_size=batchSize,
+rand_crop=True,rand_mirror=True,rotate=15,max_shear_ratio=0.1,mean_r=means["R"],mean_g=means["G"],mean_b=means["B"],
+preprocess_threads=config.NUM_DEVICES * 2)
+# construct the validation image iterator
+valIter = mx.io.ImageRecordIter(path_imgrec=config.VAL_MX_REC,data_shape=(3, 227, 227),batch_size=batchSize,mean_r=means["R"],mean_g=means["G"],mean_b=means["B"])
+# initialize the optimizer
+opt = mx.optimizer.SGD(learning_rate=1e-2, momentum=0.9, wd=0.0005,rescale_grad=1.0 / batchSize)
+# construct the checkpoints path, initialize the model argument and
+# auxiliary parameters
+checkpointsPath = os.path.sep.join([args["checkpoints"],args["prefix"]])
+argParams = None
+ # if there is no specific model starting epoch supplied, then
+ # initialize the network
+ if args["start_epoch"] <= 0:
+ # build the LeNet architecture
+print("[INFO] building network...")
+model = MxAlexNet.build(config.NUM_CLASSES)
+ # otherwise, a specific checkpoint was supplied
+  else:
+# load the checkpoint from disk
+print("[INFO] loading epoch {}...".format(args["start_epoch"]))
+model = mx.model.FeedForward.load(checkpointsPath,args["start_epoch"])
+
+ # update the model and parameters
+argParams = model.arg_params
+auxParams = model.aux_params
+model = model.symbol
+# compile the model
+model = mx.model.FeedForward(
+ctx=[mx.gpu(1), mx.gpu(2), mx.gpu(3)],
+symbol=model,
+initializer=mx.initializer.Xavier(),
+arg_params=argParams,
+aux_params=auxParams,
+optimizer=opt,
+num_epoch=90,
+begin_epoch=args["start_epoch"])
+# initialize the callbacks and evaluation metrics
+batchEndCBs = [mx.callback.Speedometer(batchSize, 500)]
+epochEndCBs = [mx.callback.do_checkpoint(checkpointsPath)]
+metrics = [mx.metric.Accuracy(), mx.metric.TopKAccuracy(top_k=5),
+mx.metric.CrossEntropy()]
+# train the network
+print("[INFO] training network...")
+model.fit(X=trainIter,eval_data=valIter,eval_metric=metrics,batch_end_callback=batchEndCBs,epoch_end_callback=epochEndCBs)
+
 
 6.3 Evaluating AlexNet
 
