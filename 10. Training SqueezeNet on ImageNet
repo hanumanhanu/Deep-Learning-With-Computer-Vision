@@ -1,0 +1,145 @@
+10.1 Understanding SqueezeNet
+In this section we will:
+1. Review the Fire module, the critical micro-architecture responsible for reducing model
+parameters and maintaining a high level of accuracy.
+2. Review the entire SqueezeNet architecture (i.e., the macro-architecture).
+3. Implement SqueezeNet by hand using mxnet
+
+10.1.3 Implementing SqueezeNet
+
+# import the necessary packages
+import mxnet as mx
+class MxSqueezeNet:
+@staticmethod
+def squeeze(input, numFilter):
+# the first part of a FIRE module consists of a number of 1x1
+# filter squeezes on the input data followed by an activation
+squeeze_1x1 = mx.sym.Convolution(data=input, kernel=(1, 1),stride=(1, 1), num_filter=numFilter)
+act_1x1 = mx.sym.LeakyReLU(data=squeeze_1x1,act_type="elu")
+# return the activation for the squeeze
+return act_1x1
+@staticmethod
+def fire(input, numSqueezeFilter, numExpandFilter):
+# construct the 1x1 squeeze followed by the 1x1 expand
+squeeze_1x1 = MxSqueezeNet.squeeze(input, numSqueezeFilter)
+expand_1x1 = mx.sym.Convolution(data=squeeze_1x1,kernel=(1, 1), stride=(1, 1), num_filter=numExpandFilter)
+relu_expand_1x1 = mx.sym.LeakyReLU(data=expand_1x1,act_type="elu")
+# construct the 3x3 expand
+expand_3x3 = mx.sym.Convolution(data=squeeze_1x1, pad=(1, 1),kernel=(3, 3), stride=(1, 1), num_filter=numExpandFilter)
+relu_expand_3x3 = mx.sym.LeakyReLU(data=expand_3x3,act_type="elu")
+
+ # the output of the FIRE module is the concatenation of the
+# activation for the 1x1 and 3x3 expands along the channel
+#dimension
+output = mx.sym.Concat(relu_expand_1x1, relu_expand_3x3,dim=1)
+# return the output of the FIRE module
+return output
+@staticmethod
+def build(classes):
+# data input
+data = mx.sym.Variable("data")
+# Block #1: CONV => RELU => POOL
+conv_1 = mx.sym.Convolution(data=data, kernel=(7, 7),stride=(2, 2), num_filter=96)
+relu_1 = mx.sym.LeakyReLU(data=conv_1, act_type="elu")
+pool_1 = mx.sym.Pooling(data=relu_1, kernel=(3, 3),stride=(2, 2), pool_type="max")
+# Block #2-4: (FIRE * 3) => POOL
+fire_2 = MxSqueezeNet.fire(pool_1, numSqueezeFilter=16,numExpandFilter=64)
+fire_3 = MxSqueezeNet.fire(fire_2, numSqueezeFilter=16,numExpandFilter=64)
+fire_4 = MxSqueezeNet.fire(fire_3, numSqueezeFilter=32,numExpandFilter=128)
+pool_4 = mx.sym.Pooling(data=fire_4, kernel=(3, 3),stride=(2, 2), pool_type="max")
+# Block #5-8: (FIRE * 4) => POOL
+fire_5 = MxSqueezeNet.fire(pool_4, numSqueezeFilter=32,numExpandFilter=128)
+fire_6 = MxSqueezeNet.fire(fire_5, numSqueezeFilter=48,numExpandFilter=192)
+fire_7 = MxSqueezeNet.fire(fire_6, numSqueezeFilter=48,numExpandFilter=192)
+fire_8 = MxSqueezeNet.fire(fire_7, numSqueezeFilter=64,numExpandFilter=256)
+pool_8 = mx.sym.Pooling(data=fire_8, kernel=(3, 3),stride=(2, 2), pool_type="max")
+# Block #9-10: FIRE => DROPOUT => CONV => RELU => POOL
+fire_9 = MxSqueezeNet.fire(pool_8, numSqueezeFilter=64,numExpandFilter=256)
+do_9 = mx.sym.Dropout(data=fire_9, p=0.5)
+conv_10 = mx.sym.Convolution(data=do_9, num_filter=classes,kernel=(1, 1), stride=(1, 1))
+relu_10 = mx.sym.LeakyReLU(data=conv_10, act_type="elu")
+pool_10 = mx.sym.Pooling(data=relu_10, kernel=(13, 13),pool_type="avg")
+# softmax classifier
+flatten = mx.sym.Flatten(data=pool_10)
+model = mx.sym.SoftmaxOutput(data=flatten, name="softmax")
+# return the network architecture
+return model
+
+10.2 Training SqueezeNet
+
+BATCH_SIZE and NUM_DEVICES configuration:
+# define the batch size and number of devices used for training
+ BATCH_SIZE = 128
+ NUM_DEVICES = 3
+
+# import the necessary packages
+from config import imagenet_squeezenet_config as config
+from pyimagesearch.nn.mxconv import MxSqueezeNet
+import mxnet as mx
+import argparse
+import logging
+import json
+import os
+# construct the argument parse and parse the arguments
+ap = argparse.ArgumentParser()
+ap.add_argument("-c", "--checkpoints", required=True,help="path to output checkpoint directory")
+ap.add_argument("-p", "--prefix", required=True,help="name of model prefix")
+ap.add_argument("-s", "--start-epoch", type=int, default=0,help="epoch to restart training at")
+args = vars(ap.parse_args())
+# set the logging level and output file
+logging.basicConfig(level=logging.DEBUG,filename="training_{}.log".format(args["start_epoch"]),filemode="w")
+# load the RGB means for the training set, then determine the batch
+# size
+means = json.loads(open(config.DATASET_MEAN).read())
+batchSize = config.BATCH_SIZE * config.NUM_DEVICES
+# construct the training image iterator
+trainIter = mx.io.ImageRecordIter(path_imgrec=config.TRAIN_MX_REC,data_shape=(3, 227, 227),batch_size=batchSize,rand_crop=True,rand_mirror=True,rotate=15,max_shear_ratio=0.1,mean_r=means["R"],mean_g=means["G"],mean_b=means["B"],preprocess_threads=config.NUM_DEVICES * 2)
+As well as the validation data iterator:
+# construct the validation image iterator
+valIter = mx.io.ImageRecordIter(path_imgrec=config.VAL_MX_REC,data_shape=(3, 227, 227),batch_size=batchSize,mean_r=means["R"],mean_g=means["G"],mean_b=means["B"])
+# initialize the optimizer
+opt = mx.optimizer.SGD(learning_rate=1e-2, momentum=0.9, wd=0.0002,
+rescale_grad=1.0 / batchSize)
+ # construct the checkpoints path, initialize the model argument and
+ # auxiliary parameters
+checkpointsPath = os.path.sep.join([args["checkpoints"],args["prefix"]])
+argParams = None
+auxParams = None
+Next, we can handle if we are (1) training SqueezeNet from the very first epoch or (2) restarting
+training from a specific epoch:
+# if there is no specific model starting epoch supplied, then
+# initialize the network
+if args["start_epoch"] <= 0:
+# build the LeNet architecture
+print("[INFO] building network...")
+model = MxSqueezeNet.build(config.NUM_CLASSES)
+# otherwise, a specific checkpoint was supplied
+else:
+ # load the checkpoint from disk
+print("[INFO] loading epoch {}...".format(args["start_epoch"]))
+model = mx.model.FeedForward.load(checkpointsPath,
+args["start_epoch"])
+# update the model and parameters
+argParams = model.arg_params
+auxParams = model.aux_params
+model = model.symbol
+Finally, we can compile our model:
+# compile the model
+model = mx.model.FeedForward(ctx=[mx.gpu(0), mx.gpu(1), mx.gpu(2)],symbol=model,initializer=mx.initializer.Xavier(),arg_params=argParams,aux_params=auxParams,optimizer=opt,num_epoch=90,begin_epoch=args["start_epoch"])
+# initialize the callbacks and evaluation metrics
+batchEndCBs = [mx.callback.Speedometer(batchSize, 250)]
+epochEndCBs = [mx.callback.do_checkpoint(checkpointsPath)]
+metrics = [mx.metric.Accuracy(), mx.metric.TopKAccuracy(top_k=5),mx.metric.CrossEntropy()]
+And finally we can train our network:
+# train the network
+print("[INFO] training network...")
+ model.fit(X=trainIter,eval_data=valIter,eval_metric=metrics,batch_end_callback=batchEndCBs,epoch_end_callback=epochEndCBs)
+
+10.4.1 SqueezeNet: Experiment #1
+$ python train_squeezenet.py --checkpoints checkpoints --prefix squeezenet
+
+$ python train_squeezenet.py --checkpoints checkpoints --prefix squeezenet \
+--start-epoch 25
+
+$ python train_squeezenet.py --checkpoints checkpoints --prefix squeezenet \
+--start-epoch 35
