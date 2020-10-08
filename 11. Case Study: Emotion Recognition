@@ -1,0 +1,160 @@
+11.1.2 Building the FER13 Dataset
+
+# import the necessary packages
+from os import path
+# define the base path to the emotion dataset
+BASE_PATH = "/raid/datasets/fer2013"
+# use the base path to define the path to the input emotions file
+INPUT_PATH = path.sep.join([BASE_PATH, "fer2013/fer2013.csv"])
+# define the number of classes (set to 6 if you are ignoring the
+# "disgust" class)
+ # NUM_CLASSES = 7
+NUM_CLASSES = 6
+# define the path to the output training, validation, and testing
+# HDF5 files
+TRAIN_HDF5 = path.sep.join([BASE_PATH, "hdf5/train.hdf5"])
+VAL_HDF5 = path.sep.join([BASE_PATH, "hdf5/val.hdf5"])
+TEST_HDF5 = path.sep.join([BASE_PATH, "hdf5/test.hdf5"])
+Finally, we’ll initialize the batch size when training our CNN along with the output directory
+where any logs or plots will be stored:
+# define the batch size
+BATCH_SIZE = 128
+# define the path to where output logs will be stored
+2OUTPUT_PATH = path.sep.join([BASE_PATH, "output"])
+
+
+# import the necessary packages
+from config import emotion_config as config
+from pyimagesearch.io import HDF5DatasetWriter
+import numpy as np
+# open the input file for reading (skipping the header), then
+# initialize the list of data and labels for the training,
+# validation, and testing sets
+print("[INFO] loading input data...")
+1f = open(config.INPUT_PATH)
+ f.__next__() # f.next() for Python 2.7
+(trainImages, trainLabels) = ([], [])
+valImages, valLabels) = ([], [])
+# loop over the rows in the input file
+1for row in f:
+1# extract the label, image, and usage from the row
+(label, image, usage) = row.strip().split(",")
+label = int(label)
+# if we are ignoring the "disgust" class there will be 6 total
+# class labels instead of 7
+if config.NUM_CLASSES == 6:
+ # merge together the "anger" and "disgust classes
+if label == 1:
+ label = 0
+
+# if label has a value greater than zero, subtract one from
+ # it to make all labels sequential (not required, but helps
+# when interpreting results)
+ if label > 0:
+ label -= 1
+# reshape the flattened pixel list into a 48x48 (grayscale)
+ # image
+ image = np.array(image.split(" "), dtype="uint8")
+image = image.reshape((48, 48))
+# check if we are examining a training image
+ if usage == "Training":
+ trainImages.append(image)
+ trainLabels.append(label)
+ # check if this is a validation image
+elif usage == "PrivateTest":
+valImages.append(image)
+valLabels.append(label)
+ # otherwise, this must be a testing image
+else:
+testImages.append(image)
+testLabels.append(label)
+# construct a list pairing the training, validation, and testing
+# images along with their corresponding labels and output HDF5
+ # files
+ datasets = [(trainImages, trainLabels, config.TRAIN_HDF5),(valImages, valLabels, config.VAL_HDF5),(testImages, testLabels, config.TEST_HDF5)]
+# loop over the dataset tuples
+for (images, labels, outputPath) in datasets:
+# create HDF5 writer
+print("[INFO] building {}...".format(outputPath))
+writer = HDF5DatasetWriter((len(images), 48, 48), outputPath)
+# loop over the image and add them to the dataset
+for (image, label) in zip(images, labels): writer.add([image], [label])
+# close the HDF5 writer
+writer.close()
+# close the input file
+f.close()
+
+11.2 Implementing a VGG-like Network
+
+
+# import the necessary packages
+from keras.models import Sequential
+from keras.layers.normalization import BatchNormalization
+from keras.layers.convolutional import Conv2D
+from keras.layers.convolutional import MaxPooling2D
+from keras.layers.advanced_activations import ELU
+from keras.layers.core import Activation
+from keras.layers.core import Flatten
+from keras.layers.core import Dropout
+from keras.layers.core import Dense
+from keras import backend as K
+class EmotionVGGNet:
+@staticmethod
+def build(width, height, depth, classes):
+# initialize the model along with the input shape to be
+# "channels last" and the channels dimension itself
+model = Sequential()
+inputShape = (height, width, depth)
+chanDim = -1
+# if we are using "channels first", update the input shape
+ # and channels dimension
+if K.image_data_format() == "channels_first":
+inputShape = (depth, height, width)
+chanDim = 1
+# Block #1: first CONV => RELU => CONV => RELU => POOL
+# layer set
+model.add(Conv2D(32, (3, 3), padding="same",kernel_initializer="he_normal", input_shape=inputShape))
+model.add(ELU())
+model.add(BatchNormalization(axis=chanDim))
+model.add(Conv2D(32, (3, 3), kernel_initializer="he_normal",padding="same"))
+model.add(ELU())
+model.add(BatchNormalization(axis=chanDim))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+# Block #2: second CONV => RELU => CONV => RELU => POOL
+# layer set
+model.add(Conv2D(64, (3, 3), kernel_initializer="he_normal",padding="same"))
+model.add(ELU())
+model.add(BatchNormalization(axis=chanDim))
+model.add(Conv2D(64, (3, 3), kernel_initializer="he_normal",padding="same"))
+model.add(ELU())
+model.add(BatchNormalization(axis=chanDim))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+# Block #3: third CONV => RELU => CONV => RELU => POOL
+# layer set
+model.add(Conv2D(128, (3, 3), kernel_initializer="he_normal",padding="same"))
+model.add(ELU())
+model.add(BatchNormalization(axis=chanDim))
+model.add(Conv2D(128, (3, 3), kernel_initializer="he_normal",padding="same"))
+model.add(ELU())
+model.add(BatchNormalization(axis=chanDim))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+# Block #4: first set of FC => RELU layers
+model.add(Flatten())
+model.add(Dense(64, kernel_initializer="he_normal"))
+model.add(ELU())
+model.add(BatchNormalization())
+model.add(Dropout(0.5))
+# Block #6: second set of FC => RELU layers
+model.add(Dense(64, kernel_initializer="he_normal"))
+model.add(ELU())
+model.add(BatchNormalization())
+model.add(Dropout(0.5))
+ # Block #7: softmax classifier
+model.add(Dense(classes, kernel_initializer="he_normal"))
+model.add(Activation("softmax"))
+# return the constructed network architecture
+return model
+
