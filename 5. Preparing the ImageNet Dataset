@@ -209,101 +209,96 @@ $ mkdir imagenet/lists
 $ mkdir imagenet/rec
 
 # import the necessary packages
-2 from os import path
-3
-4 # define the base path to where the ImageNet dataset
-5 # devkit are stored on disk)
-6 BASE_PATH = "/raid/datasets/imagenet/ILSVRC2015"
-8 # based on the base path, derive the images base path, image sets
-9 # path, and devkit path
-10 IMAGES_PATH = path.sep.join([BASE_PATH, "Data/CLS-LOC"])
-11 IMAGE_SETS_PATH = path.sep.join([BASE_PATH, "ImageSets/CLS-LOC/"])
-12 DEVKIT_PATH = path.sep.join([BASE_PATH, "devkit/data"])
-14 # define the path that maps the 1,000 possible WordNet IDs to the
-15 # class label integers
-16 WORD_IDS = path.sep.join([DEVKIT_PATH, "map_clsloc.txt"])
-18 # define the paths to the training file that maps the (partial)
-19 # image filename to integer class label
-20 TRAIN_LIST = path.sep.join([IMAGE_SETS_PATH, "train_cls.txt"])
+from os import path
+
+# define the base path to where the ImageNet dataset
+# devkit are stored on disk)
+BASE_PATH = "/raid/datasets/imagenet/ILSVRC2015"
+# based on the base path, derive the images base path, image sets
+ # path, and devkit path
+IMAGES_PATH = path.sep.join([BASE_PATH, "Data/CLS-LOC"])
+IMAGE_SETS_PATH = path.sep.join([BASE_PATH, "ImageSets/CLS-LOC/"])
+DEVKIT_PATH = path.sep.join([BASE_PATH, "devkit/data"])
+# define the path that maps the 1,000 possible WordNet IDs to the
+# class label integers
+WORD_IDS = path.sep.join([DEVKIT_PATH, "map_clsloc.txt"])
+# define the paths to the training file that maps the (partial)
+# image filename to integer class label
+TRAIN_LIST = path.sep.join([IMAGE_SETS_PATH, "train_cls.txt"])
 Next, we need to define some validation configurations:
-22 # define the paths to to the validation filenames along with the
-23 # file that contains the ground-truth validation labels
-24 VAL_LIST = path.sep.join([IMAGE_SETS_PATH, "val.txt"])
-25 VAL_LABELS = path.sep.join([DEVKIT_PATH,
-26 "ILSVRC2015_clsloc_validation_ground_truth.txt"])
-27
-28 # define the path to the validation files that are blacklisted
-29 VAL_BLACKLIST = path.sep.join([DEVKIT_PATH,
-30 "ILSVRC2015_clsloc_validation_blacklist.txt"])
-32 # since we do not have access to the testing data we need to
-33 # take a number of images from the training data and use it instead
-34 NUM_CLASSES = 1000
-35 NUM_TEST_IMAGES = 50 * NUM_CLASSES
-37 # define the path to the output training, validation, and testing
-38 # lists
-39 MX_OUTPUT = "/raid/datasets/imagenet"
-40 TRAIN_MX_LIST = path.sep.join([MX_OUTPUT, "lists/train.lst"])
-41 VAL_MX_LIST = path.sep.join([MX_OUTPUT, "lists/val.lst"])
-42 TEST_MX_LIST = path.sep.join([MX_OUTPUT, "lists/test.lst"])
-44 # define the path to the output training, validation, and testing
-45 # image records
-46 TRAIN_MX_REC = path.sep.join([MX_OUTPUT, "rec/train.rec"])
-47 VAL_MX_REC = path.sep.join([MX_OUTPUT, "rec/val.rec"])
-48 TEST_MX_REC = path.sep.join([MX_OUTPUT, "rec/test.rec"])
-50 # define the path to the dataset mean
-51 DATASET_MEAN = "output/imagenet_mean.json"
-53 # define the batch size and number of devices used for training
-54 BATCH_SIZE = 128
-55 NUM_DEVICES = 8
+# define the paths to to the validation filenames along with the
+# file that contains the ground-truth validation labels
+VAL_LIST = path.sep.join([IMAGE_SETS_PATH, "val.txt"])
+2VAL_LABELS = path.sep.join([DEVKIT_PATH,"ILSVRC2015_clsloc_validation_ground_truth.txt"])
+# define the path to the validation files that are blacklisted
+VAL_BLACKLIST = path.sep.join([DEVKIT_PATH,"ILSVRC2015_clsloc_validation_blacklist.txt"])
+# since we do not have access to the testing data we need to
+# take a number of images from the training data and use it instead
+NUM_CLASSES = 1000
+NUM_TEST_IMAGES = 50 * NUM_CLASSES
+# define the path to the output training, validation, and testing
+# lists
+MX_OUTPUT = "/raid/datasets/imagenet"
+TRAIN_MX_LIST = path.sep.join([MX_OUTPUT, "lists/train.lst"])
+VAL_MX_LIST = path.sep.join([MX_OUTPUT, "lists/val.lst"])
+TEST_MX_LIST = path.sep.join([MX_OUTPUT, "lists/test.lst"])
+# define the path to the output training, validation, and testing
+# image records
+TRAIN_MX_REC = path.sep.join([MX_OUTPUT, "rec/train.rec"])
+VAL_MX_REC = path.sep.join([MX_OUTPUT, "rec/val.rec"])
+TEST_MX_REC = path.sep.join([MX_OUTPUT, "rec/test.rec"])
+# define the path to the dataset mean
+DATASET_MEAN = "output/imagenet_mean.json"
+# define the batch size and number of devices used for training
+BATCH_SIZE = 128
+NUM_DEVICES = 8
 
 5.2.2 Our ImageNet Helper Utility
-1 # import the necessary packages
-2 import numpy as np
-3 import os
-4
-5 class ImageNetHelper:
-6 def __init__(self, config):
-7 # store the configuration object
-8 self.config = config
-9
-10 # build the label mappings and validation blacklist
-11 self.labelMappings = self.buildClassLabels()
-12 self.valBlacklist = self.buildBlackist()
-14 def buildClassLabels(self):
-15 # load the contents of the file that maps the WordNet IDs
-16 # to integers, then initialize the label mappings dictionary
-17 rows = open(self.config.WORD_IDS).read().strip().split("\n")
-18 labelMappings = {}
-20 # loop over the labels
-21 for row in rows:
-22 # split the row into the WordNet ID, label integer, and
-23 # human readable label
-24 (wordID, label, hrLabel) = row.split(" ")
-25
-26 # update the label mappings dictionary using the word ID
-27 # as the key and the label as the value, subtracting ‘1‘
-28 # from the label since MATLAB is one-indexed while Python
-29 # is zero-indexed
-30 labelMappings[wordID] = int(label) - 1
-31
-32 # return the label mappings dictionary
-33 return labelMappings
-35 def buildBlackist(self):
-36 # load the list of blacklisted image IDs and convert them to
-37 # a set
-38 rows = open(self.config.VAL_BLACKLIST).read()
-39 rows = set(rows.strip().split("\n"))
-40
-41 # return the blacklisted image IDs
-42 return rows
-44 def buildTrainingSet(self):
-45 # load the contents of the training input file that lists
-46 # the partial image ID and image number, then initialize
-47 # the list of image paths and class labels
-48 rows = open(self.config.TRAIN_LIST).read().strip()
-49 rows = rows.split("\n")
-50 paths = []
-51 labels = []
+
+# import the necessary packages
+import numpy as np
+import os
+class ImageNetHelper:
+def __init__(self, config):
+# store the configuration object
+self.config = config
+# build the label mappings and validation blacklist
+self.labelMappings = self.buildClassLabels()
+self.valBlacklist = self.buildBlackist()
+def buildClassLabels(self):
+# load the contents of the file that maps the WordNet IDs
+# to integers, then initialize the label mappings dictionary
+rows = open(self.config.WORD_IDS).read().strip().split("\n")
+labelMappings = {}
+# loop over the labels
+for row in rows:
+# split the row into the WordNet ID, label integer, and
+# human readable label
+(wordID, label, hrLabel) = row.split(" ")
+
+# update the label mappings dictionary using the word ID
+# as the key and the label as the value, subtracting ‘1‘
+# from the label since MATLAB is one-indexed while Python
+# is zero-indexed
+labelMappings[wordID] = int(label) - 1
+
+# return the label mappings dictionary
+return labelMappings
+def buildBlackist(self):
+# load the list of blacklisted image IDs and convert them to
+# a set
+rows = open(self.config.VAL_BLACKLIST).read()
+rows = set(rows.strip().split("\n"))
+# return the blacklisted image IDs
+return rows
+def buildTrainingSet(self):
+# load the contents of the training input file that lists
+# the partial image ID and image number, then initialize
+# the list of image paths and class labels
+rows = open(self.config.TRAIN_LIST).read().strip()
+rows = rows.split("\n")
+paths = []
+labels = []
 
 On Line 48 we load the entire contents of the TRAIN_LIST file and break it into rows on
 Line 49. Recall that the TRAIN_LIST file contains the partial image file paths – a sample of the
@@ -319,20 +314,18 @@ n01440764/n01440764_11085 98
 n01440764/n01440764_1108 99
 n01440764/n01440764_1113 100
 
-53 # loop over the rows in the input training file
-54 for row in rows:
-55 # break the row into the partial path and image
-56 # number (the image number is sequential and is
-57 # essentially useless to us)
-58 (partialPath, imageNum) = row.strip().split(" ")
-59
-60 # construct the full path to the training image, then
-61 # grab the word ID from the path and use it to determine
-62 # the integer class label
-63 path = os.path.sep.join([self.config.IMAGES_PATH,
-64 "train", "{}.JPEG".format(partialPath)])
-65 wordID = partialPath.split("/")[0]
-66 label = self.labelMappings[wordID]
+# loop over the rows in the input training file
+for row in rows:
+# break the row into the partial path and image
+ # number (the image number is sequential and is
+# essentially useless to us)
+(partialPath, imageNum) = row.strip().split(" ")
+# construct the full path to the training image, then
+# grab the word ID from the path and use it to determine
+# the integer class label
+path = os.path.sep.join([self.config.IMAGES_PATH,"train", "{}.JPEG".format(partialPath)])
+wordID = partialPath.split("/")[0]
+label = self.labelMappings[wordID]
 
 
 This path consists of three components:
@@ -344,47 +337,45 @@ We append the file extension to .JPEG to create the final image path. An example
 seen below:
 /raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n02097130/n02097130_4602.JPEG
 
-68 # update the respective paths and label lists
-69 paths.append(path)
-70 labels.append(label)
-71
-72 # return a tuple of image paths and associated integer class
-73 # labels
-74 return (np.array(paths), np.array(labels))
-76 def buildValidationSet(self):
-77 # initialize the list of image paths and class labels
-78 paths = []
-79 labels = []
-80
-81 # load the contents of the file that lists the partial
-82 # validation image filenames
-83 valFilenames = open(self.config.VAL_LIST).read()
-84 valFilenames = valFilenames.strip().split("\n")
-85
-86 # load the contents of the file that contains the *actual*
-87 # ground-truth integer class labels for the validation set
-88 valLabels = open(self.config.VAL_LABELS).read()
-89 valLabels = valLabels.strip().split("\n")
-91 # loop over the validation data
-92 for (row, label) in zip(valFilenames, valLabels):
-93 # break the row into the partial path and image number
-94 (partialPath, imageNum) = row.strip().split(" ")
-95
-96 # if the image number is in the blacklist set then we
-97 # should ignore this validation image
-98 if imageNum in self.valBlacklist:
-99 continue
-100
-101 # construct the full path to the validation image, then
-102 # update the respective paths and labels lists
-103 path = os.path.sep.join([self.config.IMAGES_PATH, "val",
-104 "{}.JPEG".format(partialPath)])
-105 paths.append(path)
-106 labels.append(int(label) - 1)
-107
-108 # return a tuple of image paths and associated integer class
-109 # labels
-110 return (np.array(paths), np.array(labels))
+# update the respective paths and label lists
+paths.append(path)
+labels.append(label)
+# return a tuple of image paths and associated integer class
+# labels
+ return (np.array(paths), np.array(labels))
+ def buildValidationSet(self):
+# initialize the list of image paths and class labels
+ paths = []
+ labels = []
+
+ # load the contents of the file that lists the partial
+# validation image filenames
+valFilenames = open(self.config.VAL_LIST).read()
+valFilenames = valFilenames.strip().split("\n")
+
+# load the contents of the file that contains the *actual*
+# ground-truth integer class labels for the validation set
+valLabels = open(self.config.VAL_LABELS).read()
+valLabels = valLabels.strip().split("\n")
+# loop over the validation data
+for (row, label) in zip(valFilenames, valLabels):
+# break the row into the partial path and image number
+ (partialPath, imageNum) = row.strip().split(" ")
+
+ # if the image number is in the blacklist set then we
+ # should ignore this validation image
+ if imageNum in self.valBlacklist:
+ continue
+
+ # construct the full path to the validation image, then
+# update the respective paths and labels lists
+ path = os.path.sep.join([self.config.IMAGES_PATH, "val", "{}.JPEG".format(partialPath)])
+paths.append(path)
+ labels.append(int(label) - 1)
+
+ # return a tuple of image paths and associated integer class
+ # labels
+return (np.array(paths), np.array(labels))
 
 5.2.3 Creating List and Mean Files
 r. At a high level, we will:
@@ -394,37 +385,31 @@ r. At a high level, we will:
 4. Loop over each of the sets.
 5. Write the image path + corresponding class label to disk.
 Let’s go ahead and start working on build_imagenet.py now:
-1 # import the necessary packages
-2 from config import imagenet_alexnet_config as config
-3 from sklearn.model_selection import train_test_split
-4 from pyimagesearch.utils import ImageNetHelper
-5 import numpy as np
-6 import progressbar
-7 import json
-8 import cv2
-10 # initialize the ImageNet helper and use it to construct the set of
-11 # training and testing data
-12 print("[INFO] loading image paths...")
-13 inh = ImageNetHelper(config)
-14 (trainPaths, trainLabels) = inh.buildTrainingSet()
-15 (valPaths, valLabels) = inh.buildValidationSet()
-17 # perform stratified sampling from the training set to construct a
-18 # a testing set
-19 print("[INFO] constructing splits...")
-20 split = train_test_split(trainPaths, trainLabels,
-21 test_size=config.NUM_TEST_IMAGES, stratify=trainLabels,
-22 random_state=42)
-23 (trainPaths, testPaths, trainLabels, testLabels) = split
-25 # construct a list pairing the training, validation, and testing
-26 # image paths along with their corresponding labels and output list
-27 # files
-28 datasets = [
-29 ("train", trainPaths, trainLabels, config.TRAIN_MX_LIST),
-30 ("val", valPaths, valLabels, config.VAL_MX_LIST),
-31 ("test", testPaths, testLabels, config.TEST_MX_LIST)]
-32
-33 # initialize the list of Red, Green, and Blue channel averages
-34 (R, G, B) = ([], [], [])
+# import the necessary packages
+from config import imagenet_alexnet_config as config
+from sklearn.model_selection import train_test_split
+from pyimagesearch.utils import ImageNetHelper
+import numpy as np
+import progressbar
+import json
+import cv2
+# initialize the ImageNet helper and use it to construct the set of
+# training and testing data
+print("[INFO] loading image paths...")
+inh = ImageNetHelper(config)
+(trainPaths, trainLabels) = inh.buildTrainingSet()
+(valPaths, valLabels) = inh.buildValidationSet()
+# perform stratified sampling from the training set to construct a
+# a testing set
+ print("[INFO] constructing splits...")
+split = train_test_split(trainPaths, trainLabels,test_size=config.NUM_TEST_IMAGES, stratify=trainLabels,random_state=42)
+(trainPaths, testPaths, trainLabels, testLabels) = split
+# construct a list pairing the training, validation, and testing
+# image paths along with their corresponding labels and output list
+# files
+datasets = [("train", trainPaths, trainLabels, config.TRAIN_MX_LIST),("val", valPaths, valLabels, config.VAL_MX_LIST),("test", testPaths, testLabels, config.TEST_MX_LIST)]
+# initialize the list of Red, Green, and Blue channel averages
+(R, G, B) = ([], [], [])
 define a datasets list. Each entry in the datasets list is a 4-tuple, consisting of
 four values:
 1. The type of split (i.e., training, testing, or validation).
@@ -433,35 +418,31 @@ four values:
 4. The path to the output .lst file required by mxnet.
 We’ll also initialize the RGB channel averages on Line 34. Next, let’s loop over each entry in
 the datasets list:
-36 # loop over the dataset tuples
-37 for (dType, paths, labels, outputPath) in datasets:
-38 # open the output file for writing
-39 print("[INFO] building {}...".format(outputPath))
-40 f = open(outputPath, "w")
-41
-42 # initialize the progress bar
-43 widgets = ["Building List: ", progressbar.Percentage(), " ",
-44 progressbar.Bar(), " ", progressbar.ETA()]
-45 pbar = progressbar.ProgressBar(maxval=len(paths),
-46 widgets=widgets).start()
-48 # loop over each of the individual images + labels
-49 for (i, (path, label)) in enumerate(zip(paths, labels)):
-50 # write the image index, label, and output path to file
-51 row = "\t".join([str(i), str(label), path])
-52 f.write("{}\n".format(row))
-53
-54 # if we are building the training dataset, then compute the
-55 # mean of each channel in the image, then update the
-56 # respective lists
-57 if dType == "train":
-58 image = cv2.imread(path)
-59 (b, g, r) = cv2.mean(image)[:3]
-60 R.append(r)
-61 G.append(g)
-62 B.append(b)
-63
-64 # update the progress bar
-65 pbar.update(i)
+# loop over the dataset tuples
+for (dType, paths, labels, outputPath) in datasets:
+# open the output file for writing
+print("[INFO] building {}...".format(outputPath))
+f = open(outputPath, "w")
+# initialize the progress bar
+widgets = ["Building List: ", progressbar.Percentage(), " ",progressbar.Bar(), " ", progressbar.ETA()]
+pbar = progressbar.ProgressBar(maxval=len(paths),widgets=widgets).start()
+# loop over each of the individual images + labels
+ for (i, (path, label)) in enumerate(zip(paths, labels)):
+ # write the image index, label, and output path to file
+ row = "\t".join([str(i), str(label), path])
+ f.write("{}\n".format(row))
+
+ # if we are building the training dataset, then compute the
+ # mean of each channel in the image, then update the
+# respective lists
+ if dType == "train":image = cv2.imread(path)
+ (b, g, r) = cv2.mean(image)[:3]
+ R.append(r)
+ G.append(g)
+ B.append(b)
+
+# update the progress bar
+pbar.update(i)
 For each path and label, we write three values to the output .lst file:
 1. The index, i (this is simply a unique integer that mxnet can associate with the image in the
 set).
@@ -475,17 +456,17 @@ output file can be seen below:
 3 121 /raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n02483708/n02483708_3226.JPEG
 4 977 /raid/datasets/imagenet/ILSVRC2015/Data/CLS-LOC/train/n04392985/n04392985_22306.JPEG
 
-67 # close the output file
-68 pbar.finish()
-69 f.close()
-70
-71 # construct a dictionary of averages, then serialize the means to a
-72 # JSON file
-73 print("[INFO] serializing means...")
-74 D = {"R": np.mean(R), "G": np.mean(G), "B": np.mean(B)}
-75 f = open(config.DATASET_MEAN, "w")
-76 f.write(json.dumps(D))
-77 f.close()
+ # close the output file
+ pbar.finish()
+f.close()
+
+ # construct a dictionary of averages, then serialize the means to a
+ # JSON file
+ print("[INFO] serializing means...")
+ D = {"R": np.mean(R), "G": np.mean(G), "B": np.mean(B)}
+ f = open(config.DATASET_MEAN, "w")
+ f.write(json.dumps(D))
+f.close()
 To execute the build_dataset.py script, just execute the following command:
 $ time python build_imagenet.py
 [INFO] loading image paths...
